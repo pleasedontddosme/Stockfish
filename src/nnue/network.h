@@ -42,9 +42,10 @@ class Position;
 
 namespace Stockfish::Eval::NNUE {
 
+/// @brief Defines the type of embedded NNUE network.
 enum class EmbeddedNNUEType {
-    BIG,
-    SMALL,
+    Big,
+    Small,
 };
 
 using NetworkOutput = std::tuple<Value, Value>;
@@ -53,55 +54,49 @@ template<typename Arch, typename Transformer>
 class Network {
     static constexpr IndexType FTDimensions = Arch::TransformedFeatureDimensions;
 
-   public:
+public:
     Network(EvalFile file, EmbeddedNNUEType type) :
         evalFile(file),
         embeddedType(type) {}
 
+    // Rule of Five: explicitly declared special member functions
     Network(const Network& other);
-    Network(Network&& other) = default;
-
+    Network(Network&& other) noexcept = default;
     Network& operator=(const Network& other);
-    Network& operator=(Network&& other) = default;
+    Network& operator=(Network&& other) noexcept = default;
 
     void load(const std::string& rootDirectory, std::string evalfilePath);
-    bool save(const std::optional<std::string>& filename) const;
+    [[nodiscard]] bool save(const std::optional<std::string>& filename) const;
 
-    NetworkOutput evaluate(const Position&                         pos,
-                           AccumulatorStack&                       accumulatorStack,
+    NetworkOutput evaluate(const Position& pos,
+                           AccumulatorStack& accumulatorStack,
                            AccumulatorCaches::Cache<FTDimensions>* cache) const;
 
-
     void verify(std::string evalfilePath, const std::function<void(std::string_view)>&) const;
-    NnueEvalTrace trace_evaluate(const Position&                         pos,
-                                 AccumulatorStack&                       accumulatorStack,
-                                 AccumulatorCaches::Cache<FTDimensions>* cache) const;
+    NnueEvalTrace traceEvaluate(const Position& pos,
+                                AccumulatorStack& accumulatorStack,
+                                AccumulatorCaches::Cache<FTDimensions>* cache) const;
 
-   private:
-    void load_user_net(const std::string&, const std::string&);
-    void load_internal();
-
+private:
+    void loadUserNet(const std::string&, const std::string&);
+    void loadInternal();
     void initialize();
 
-    bool                       save(std::ostream&, const std::string&, const std::string&) const;
-    std::optional<std::string> load(std::istream&);
+    [[nodiscard]] bool save(std::ostream&, const std::string&, const std::string&) const;
+    [[nodiscard]] std::optional<std::string> load(std::istream&);
 
-    bool read_header(std::istream&, std::uint32_t*, std::string*) const;
-    bool write_header(std::ostream&, std::uint32_t, const std::string&) const;
+    [[nodiscard]] bool readHeader(std::istream&, std::uint32_t*, std::string*) const;
+    [[nodiscard]] bool writeHeader(std::ostream&, std::uint32_t, const std::string&) const;
 
-    bool read_parameters(std::istream&, std::string&) const;
-    bool write_parameters(std::ostream&, const std::string&) const;
+    [[nodiscard]] bool readParameters(std::istream&, std::string&) const;
+    [[nodiscard]] bool writeParameters(std::ostream&, const std::string&) const;
 
-    // Input feature converter
     LargePagePtr<Transformer> featureTransformer;
-
-    // Evaluation function
     AlignedPtr<Arch[]> network;
 
-    EvalFile         evalFile;
+    EvalFile evalFile;
     EmbeddedNNUEType embeddedType;
 
-    // Hash value of evaluation function structure
     static constexpr std::uint32_t hash = Transformer::get_hash_value() ^ Arch::get_hash_value();
 
     template<IndexType Size>
@@ -110,28 +105,24 @@ class Network {
     friend class AccumulatorStack;
 };
 
-// Definitions of the network types
+// Aliases for the network types
 using SmallFeatureTransformer = FeatureTransformer<TransformedFeatureDimensionsSmall>;
-using SmallNetworkArchitecture =
-  NetworkArchitecture<TransformedFeatureDimensionsSmall, L2Small, L3Small>;
-
-using BigFeatureTransformer  = FeatureTransformer<TransformedFeatureDimensionsBig>;
+using SmallNetworkArchitecture = NetworkArchitecture<TransformedFeatureDimensionsSmall, L2Small, L3Small>;
+using BigFeatureTransformer = FeatureTransformer<TransformedFeatureDimensionsBig>;
 using BigNetworkArchitecture = NetworkArchitecture<TransformedFeatureDimensionsBig, L2Big, L3Big>;
 
-using NetworkBig   = Network<BigNetworkArchitecture, BigFeatureTransformer>;
+using NetworkBig = Network<BigNetworkArchitecture, BigFeatureTransformer>;
 using NetworkSmall = Network<SmallNetworkArchitecture, SmallFeatureTransformer>;
 
-
+/// @brief Struct to hold both the big and small networks.
 struct Networks {
-    Networks(NetworkBig&& nB, NetworkSmall&& nS) :
-        big(std::move(nB)),
-        small(std::move(nS)) {}
+    Networks(NetworkBig&& nB, NetworkSmall&& nS) noexcept
+        : big(std::move(nB)), small(std::move(nS)) {}
 
-    NetworkBig   big;
+    NetworkBig big;
     NetworkSmall small;
 };
 
-
-}  // namespace Stockfish
+} // namespace Stockfish::Eval::NNUE
 
 #endif
